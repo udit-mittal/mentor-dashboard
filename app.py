@@ -5,20 +5,20 @@ from langchain.prompts import PromptTemplate
 from fpdf import FPDF
 import base64
 
-# Streamlit page setup
-st.set_page_config(page_title="Mentor Dashboard", layout="centered")
-st.title("🧑‍🏫 Mentor Dashboard for Placement Prep")
+# Read API key from environment variable
+api_key = os.getenv("GROQ_API_KEY")
 
-# Load API key from environment variable
-GROQ_API_KEY = os.getenv("GROQ_API_KEY")
-
-if not GROQ_API_KEY:
+if not api_key:
     st.error("API key not found. Please set the GROQ_API_KEY environment variable.")
     st.stop()
 
-# Initialize LLM with secure key
+# Set Streamlit page config
+st.set_page_config(page_title="Mentor Dashboard", layout="centered")
+st.title("🧑‍🏫 Mentor Dashboard for Placement Prep")
+
+# Initialize Groq LLM
 llm = ChatGroq(
-    api_key=GROQ_API_KEY,
+    api_key=api_key,
     model_name="llama3-8b-8192"
 )
 
@@ -47,7 +47,7 @@ post_class_template = PromptTemplate.from_template(
     """
 )
 
-# PDF generation helper
+# Helper function to create a downloadable PDF from text
 def create_pdf_download(text, filename):
     pdf = FPDF()
     pdf.add_page()
@@ -57,19 +57,20 @@ def create_pdf_download(text, filename):
     for line in text.split("\n"):
         if line.strip().endswith(":"):
             pdf.set_font("Arial", 'B', 12)
-            pdf.cell(0, 10, line, ln=True)
+            pdf.cell(0, 10, line.strip(), ln=True)
             pdf.set_font("Arial", size=12)
         else:
-            pdf.multi_cell(0, 10, line)
+            pdf.multi_cell(0, 10, line.strip())
 
     pdf_output = f"{filename}"
     pdf.output(pdf_output)
+
     with open(pdf_output, "rb") as f:
         base64_pdf = base64.b64encode(f.read()).decode('utf-8')
-    href = f'<a href="data:application/pdf;base64,{base64_pdf}" download="{filename}">📥 Download {filename}</a>'
-    return href
+        href = f'<a href="data:application/pdf;base64,{base64_pdf}" download="{filename}">📥 Download {filename}</a>'
+        return href
 
-# User inputs
+# Streamlit UI
 topic = st.text_input("Enter a topic for the placement class:", placeholder="e.g., Dynamic Programming")
 difficulty = st.selectbox("Select difficulty level:", ["Beginner", "Intermediate", "Advanced"])
 generate = st.button("🚀 Generate Content")
@@ -80,7 +81,6 @@ if generate and topic:
         in_class = llm.invoke(in_class_template.format(topic=topic)).content
         post_class = llm.invoke(post_class_template.format(topic=topic)).content
 
-    # Display + download
     st.subheader("📘 Pre-Class Material")
     st.text_area("Preview:", pre_class, height=250)
     st.markdown(create_pdf_download(pre_class, "pre_class.pdf"), unsafe_allow_html=True)
